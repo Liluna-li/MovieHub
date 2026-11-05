@@ -69,8 +69,8 @@ public class MoviesApiTest {
         assertEquals("application/json; charset=UTF-8", contentTypeHeaderValue,
                 "Content-Type должен содержать формат данных и кодировку");
 
-        String body = resp.body().trim();
-        assertTrue(body.startsWith("[") && body.endsWith("]"),
+        JsonArray body = JsonParser.parseString(resp.body()).getAsJsonArray();
+        assertTrue(body.isEmpty(),
                 "Ожидается JSON-массив");
     }
 
@@ -83,8 +83,8 @@ public class MoviesApiTest {
         HttpResponse<String> resp = send(requestBuilder("/movies").GET().build());
         assertEquals(200, resp.statusCode());
         JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
-        assertTrue(body.get("title").getAsString().contains("Фильм 1"), "Список должен содержать добавленный фильм");
-        assertTrue(body.get("year").getAsString().contains("2000"));
+        assertEquals("Фильм 1", body.get("title").getAsString(), "Список должен содержать добавленный фильм");
+        assertEquals("2000", body.get("year").getAsString());
     }
 
     @Test
@@ -97,8 +97,8 @@ public class MoviesApiTest {
         assertEquals("application/json; charset=UTF-8", contentType);
         JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
         assertTrue(body.keySet().contains("id"), "Тело должно содержать id");
-        assertTrue(body.get("title").getAsString().contains("Матрица"));
-        assertTrue(body.get("year").getAsString().contains("1999"));
+        assertEquals("Матрица", body.get("title").getAsString());
+        assertEquals("1999", body.get("year").getAsString());
     }
 
     @Test
@@ -174,7 +174,7 @@ public class MoviesApiTest {
         assertEquals("application/json; charset=UTF-8",
                 resp.headers().firstValue("Content-Type").orElse(""));
         JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
-        assertTrue(body.get("title").getAsString().contains("Начало"));
+        assertEquals("Начало", body.get("title").getAsString());
     }
 
     @Test
@@ -182,7 +182,7 @@ public class MoviesApiTest {
         HttpResponse<String> resp = send(requestBuilder("/movies/999999").GET().build());
         assertEquals(404, resp.statusCode());
         JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
-        assertTrue(body.get("error").getAsString().contains("Фильм не найден"));
+        assertEquals("Фильм не найден", body.get("error").getAsString());
     }
 
     @Test
@@ -190,7 +190,7 @@ public class MoviesApiTest {
         HttpResponse<String> resp = send(requestBuilder("/movies/abc").GET().build());
         assertEquals(400, resp.statusCode());
         JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
-        assertTrue(body.get("error").getAsString().contains("Некорректный ID"));
+        assertEquals("Некорректный ID", body.get("error").getAsString());
     }
 
     @Test
@@ -217,7 +217,7 @@ public class MoviesApiTest {
         HttpResponse<String> resp = send(requestBuilder("/movies/abc").DELETE().build());
         assertEquals(400, resp.statusCode());
         JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
-        assertTrue(body.get("error").getAsString().contains("Некорректный ID"));
+        assertEquals("Некорректный ID", body.get("error").getAsString());
     }
 
     @Test
@@ -232,8 +232,8 @@ public class MoviesApiTest {
         assertEquals(2, body.size());
         JsonObject movieA = body.get(0).getAsJsonObject();
         JsonObject movieB = body.get(1).getAsJsonObject();
-        assertTrue(movieA.get("title").getAsString().contains("Фильм А"));
-        assertTrue(movieB.get("title").getAsString().contains("Фильм Б"));
+        assertEquals("Фильм А", movieA.get("title").getAsString());
+        assertEquals("Фильм Б", movieB.get("title").getAsString());
     }
 
     @Test
@@ -249,7 +249,7 @@ public class MoviesApiTest {
         HttpResponse<String> resp = send(requestBuilder("/movies?year=abc").GET().build());
         assertEquals(400, resp.statusCode());
         JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
-        assertTrue(body.get("error").getAsString().contains("Некорректный параметр запроса — 'year'"));
+        assertEquals("Некорректный параметр запроса — 'year'", body.get("error").getAsString());
     }
 
     @Test
