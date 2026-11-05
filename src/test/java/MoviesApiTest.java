@@ -1,3 +1,6 @@
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,7 +14,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MoviesApiTest {
     private static final int PORT = 8080;
@@ -78,9 +82,9 @@ public class MoviesApiTest {
 
         HttpResponse<String> resp = send(requestBuilder("/movies").GET().build());
         assertEquals(200, resp.statusCode());
-        String body = resp.body();
-        assertTrue(body.contains("\"title\":\"Фильм 1\""), "Список должен содержать добавленный фильм");
-        assertTrue(body.contains("\"year\":2000"));
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
+        assertTrue(body.get("title").getAsString().contains("Фильм 1"), "Список должен содержать добавленный фильм");
+        assertTrue(body.get("year").getAsString().contains("2000"));
     }
 
     @Test
@@ -91,10 +95,10 @@ public class MoviesApiTest {
         assertEquals(201, resp.statusCode(), "POST /movies должен вернуть 201");
         String contentType = resp.headers().firstValue("Content-Type").orElse("");
         assertEquals("application/json; charset=UTF-8", contentType);
-        String body = resp.body();
-        assertTrue(body.contains("\"id\":"), "Тело должно содержать id");
-        assertTrue(body.contains("\"title\":\"Матрица\""));
-        assertTrue(body.contains("\"year\":1999"));
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
+        assertTrue(body.keySet().contains("id"), "Тело должно содержать id");
+        assertTrue(body.get("title").getAsString().contains("Матрица"));
+        assertTrue(body.get("year").getAsString().contains("1999"));
     }
 
     @Test
@@ -103,9 +107,9 @@ public class MoviesApiTest {
                 "{\"title\":\"\",\"year\":2000}", "application/json");
 
         assertEquals(422, resp.statusCode(), "Пустой title должен вернуть 422");
-        String body = resp.body();
-        assertTrue(body.contains("\"error\""), "Ответ должен содержать поле error");
-        assertTrue(body.contains("название не должно быть пустым"), "Ответ должен содержать детали");
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
+        assertTrue(body.keySet().contains("error"), "Ответ должен содержать поле error");
+        assertTrue(body.get("details").getAsString().contains("название не должно быть пустым"), "Ответ должен содержать детали");
     }
 
     @Test
@@ -114,16 +118,19 @@ public class MoviesApiTest {
         HttpResponse<String> resp = post("/movies",
                 "{\"title\":\"" + longTitle + "\",\"year\":2000}", "application/json");
 
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
         assertEquals(422, resp.statusCode(), "Слишком длинный title должен вернуть 422");
-        assertTrue(resp.body().contains("название должно быть не длиннее 100 символов"));
+        assertTrue(body.get("details").getAsString().contains("название должно быть не длиннее 100 символов"));
     }
 
     @Test
     void postMovie_invalidYear_returns422() throws Exception {
         HttpResponse<String> resp = post("/movies",
                 "{\"title\":\"Фильм\",\"year\":1887}", "application/json");
+
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
         assertEquals(422, resp.statusCode());
-        assertTrue(resp.body().contains("год должен быть между 1888"));
+        assertTrue(body.get("details").getAsString().contains("год должен быть между 1888"));
     }
 
     @Test
@@ -131,8 +138,10 @@ public class MoviesApiTest {
         int maxYear = java.time.LocalDate.now().getYear() + 2;
         HttpResponse<String> resp = post("/movies",
                 "{\"title\":\"Фильм\",\"year\":" + maxYear + "}", "application/json");
+
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
         assertEquals(422, resp.statusCode());
-        assertTrue(resp.body().contains("год должен быть между 1888"));
+        assertTrue(body.get("details").getAsString().contains("год должен быть между 1888"));
     }
 
     @Test
@@ -164,27 +173,31 @@ public class MoviesApiTest {
         assertEquals(200, resp.statusCode());
         assertEquals("application/json; charset=UTF-8",
                 resp.headers().firstValue("Content-Type").orElse(""));
-        assertTrue(resp.body().contains("\"title\":\"Начало\""));
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
+        assertTrue(body.get("title").getAsString().contains("Начало"));
     }
 
     @Test
     void getMovieById_notFound_returns404() throws Exception {
         HttpResponse<String> resp = send(requestBuilder("/movies/999999").GET().build());
         assertEquals(404, resp.statusCode());
-        assertTrue(resp.body().contains("Фильм не найден"));
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
+        assertTrue(body.get("error").getAsString().contains("Фильм не найден"));
     }
 
     @Test
     void getMovieById_notNumber_returns400() throws Exception {
         HttpResponse<String> resp = send(requestBuilder("/movies/abc").GET().build());
         assertEquals(400, resp.statusCode());
-        assertTrue(resp.body().contains("Некорректный ID"));
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
+        assertTrue(body.get("error").getAsString().contains("Некорректный ID"));
     }
 
     @Test
     void deleteMovie_existing_returns204() throws Exception {
         HttpResponse<String> created = post("/movies",
                 "{\"title\":\"Удалить\",\"year\":2000}", "application/json");
+
         int id = extractId(created.body());
 
         HttpResponse<String> resp = send(requestBuilder("/movies/" + id).DELETE().build());
@@ -195,14 +208,16 @@ public class MoviesApiTest {
     void deleteMovie_notFound_returns404() throws Exception {
         HttpResponse<String> resp = send(requestBuilder("/movies/999999").DELETE().build());
         assertEquals(404, resp.statusCode());
-        assertTrue(resp.body().contains("Фильм не найден"));
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
+        assertTrue(body.get("error").getAsString().contains("Фильм не найден"));
     }
 
     @Test
     void deleteMovie_notNumber_returns400() throws Exception {
         HttpResponse<String> resp = send(requestBuilder("/movies/abc").DELETE().build());
         assertEquals(400, resp.statusCode());
-        assertTrue(resp.body().contains("Некорректный ID"));
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
+        assertTrue(body.get("error").getAsString().contains("Некорректный ID"));
     }
 
     @Test
@@ -213,25 +228,28 @@ public class MoviesApiTest {
 
         HttpResponse<String> resp = send(requestBuilder("/movies?year=1995").GET().build());
         assertEquals(200, resp.statusCode());
-        String body = resp.body();
-        assertTrue(body.contains("Фильм А"));
-        assertTrue(body.contains("Фильм Б"));
-        assertFalse(body.contains("Фильм В"));
+        JsonArray body = JsonParser.parseString(resp.body()).getAsJsonArray();
+        assertEquals(2, body.size());
+        JsonObject movieA = body.get(0).getAsJsonObject();
+        JsonObject movieB = body.get(1).getAsJsonObject();
+        assertTrue(movieA.get("title").getAsString().contains("Фильм А"));
+        assertTrue(movieB.get("title").getAsString().contains("Фильм Б"));
     }
 
     @Test
     void getMoviesByYear_noMatch_returnsEmptyList() throws Exception {
         HttpResponse<String> resp = send(requestBuilder("/movies?year=1900").GET().build());
         assertEquals(200, resp.statusCode());
-        String body = resp.body().trim();
-        assertTrue(body.startsWith("[") && body.endsWith("]"));
+        JsonArray body = JsonParser.parseString(resp.body()).getAsJsonArray();
+        assertTrue(body.isEmpty());
     }
 
     @Test
     void getMoviesByYear_notNumber_returns400() throws Exception {
         HttpResponse<String> resp = send(requestBuilder("/movies?year=abc").GET().build());
         assertEquals(400, resp.statusCode());
-        assertTrue(resp.body().contains("Некорректный параметр запроса — 'year'"));
+        JsonObject body = JsonParser.parseString(resp.body()).getAsJsonObject();
+        assertTrue(body.get("error").getAsString().contains("Некорректный параметр запроса — 'year'"));
     }
 
     @Test
@@ -242,12 +260,8 @@ public class MoviesApiTest {
     }
 
     private static int extractId(String body) {
-        int idx = body.indexOf("\"id\":");
-        int start = idx + 5;
-        int end = start;
-        while (end < body.length() && Character.isDigit(body.charAt(end))) {
-            end++;
-        }
-        return Integer.parseInt(body.substring(start, end));
+        return JsonParser.parseString(body).getAsJsonObject()
+                .get("id")
+                .getAsInt();
     }
 }
